@@ -1,0 +1,11 @@
+{
+  "name": "ftgm-sim-api",
+  "version": "1.0.0",
+  "main": "sim.js",
+  "scripts": {
+    "start": "node sim.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  }
+}
