@@ -1,91 +1,51 @@
 export default async function handler(req, res) {
-  const allowedDomain = "https://ftgmdb.pages.dev";
-
-  // Extract origin and referer headers
-  const origin = req.headers["origin"] || "";
-  const referer = req.headers["referer"] || "";
-
-  // Check if request comes from the allowed domain
-  const isAllowedDomain =
-    origin.startsWith(allowedDomain) || referer.startsWith(allowedDomain);
-
-  // Set CORS headers (Allow request to succeed at browser level)
-  res.setHeader("Access-Control-Allow-Origin", origin || "*");
-  res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
-  res.setHeader("Content-Type", "application/json; charset=utf-8");
-
-  // Handle OPTIONS preflight request
-  if (req.method === "OPTIONS") {
+  // Enable CORS
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  
+  if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
 
-  // Developer Branding Structure
-  const customDeveloperInfo = {
-    Developer: "RANA FAISAL ALI",
-    website: "https://ftgmdb.pages.dev",
-  };
+  const { num } = req.query;
 
-  // Helper function to send Pretty Printed JSON
-  const sendPrettyJson = (statusCode, payload) => {
-    return res.status(statusCode).send(JSON.stringify(payload, null, 2));
-  };
-
-  // IF DOMAIN LOCK FAILS: Return restricted custom data with 200 OK
-  if (!isAllowedDomain) {
-    return sendPrettyJson(200, {
-      ok: true,
-      cached: "yes",
-      data: [
-        {
-          nbr: "03104882921",
-          nam: "FTGM HACKS",
-          cni: "Contact On Uper Number For Data",
-          adr: 'Visit pak-digital.store For More &quot;',
-        },
-      ],
-      contact_developer: customDeveloperInfo,
-    });
-  }
-
-  // Extract search query parameter
-  const { search } = req.query;
-
-  if (!search) {
-    return sendPrettyJson(400, {
-      ok: false,
-      message: "Search query parameter is required (e.g. ?search=03034992121)",
+  if (!num) {
+    return res.status(400).json({
+      status: "error",
+      message: "Please provide a 'num' parameter. Example: /api/sim?num=3034992121"
     });
   }
 
   try {
-    // Fetch data from target API
-    const targetUrl = `https://simdata.faizankhichi.me/?search=${encodeURIComponent(search)}`;
-    const response = await fetch(targetUrl);
+    const upstreamUrl = `https://ft-simdb.ftshehryar10044.workers.dev/ft/api?num=${encodeURIComponent(num)}`;
+    const response = await fetch(upstreamUrl);
 
     if (!response.ok) {
-      return sendPrettyJson(response.status, {
-        ok: false,
-        message: "Failed to fetch data from the upstream service.",
+      return res.status(response.status).json({
+        status: "error",
+        message: "Failed to fetch data from upstream API"
       });
     }
 
-    const data = await response.json();
+    const rawData = await response.json();
 
-    // Reconstruct response with fetched data and custom developer branding
-    const customResponse = {
-      ok: data.ok ?? true,
-      cached: data.cached ?? "no",
-      data: data.data || [],
-      contact_developer: customDeveloperInfo,
+    // Reconstruct response while removing unwanted developer credits
+    const filteredData = {
+      status: rawData.status || "success",
+      number: rawData.number || num,
+      count: rawData.count || (rawData.records ? rawData.records.length : 0),
+      records: rawData.records || [],
+      developer: "FTGM (RANA FAISAL ALI)",
+      website: "https://ftgmtools.pages.dev",
+      copyright: "© Rana Faisal Ali | FTGM HACKS"
     };
 
-    return sendPrettyJson(200, customResponse);
+    return res.status(200).json(filteredData);
   } catch (error) {
-    return sendPrettyJson(500, {
-      ok: false,
-      message: "Internal server error",
-      error: error.message,
+    return res.status(500).json({
+      status: "error",
+      message: "Internal Server Error",
+      error: error.message
     });
   }
 }
