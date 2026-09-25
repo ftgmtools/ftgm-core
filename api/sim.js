@@ -1,6 +1,19 @@
 export default async function handler(req, res) {
-  // CORS اور JSON ہیڈرز
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  const allowedDomain = "https://ftgmdb.pages.dev";
+  const origin = req.headers['origin'] || "";
+  const referer = req.headers['referer'] || "";
+
+  // 1. Domain Locking Check (Origin ya Referer ftgmdb.pages.dev hona chahiye)
+  const isAllowedOrigin = origin === allowedDomain;
+  const isAllowedReferer = referer.startsWith(allowedDomain);
+
+  if (!isAllowedOrigin && !isAllowedReferer) {
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    return res.status(403).send("ONLY FTGM CAN USE! CONTACT 03104882921 FOR THE API AND CODE . ALL NADRA SERVICES AVAILABLE");
+  }
+
+  // Set CORS for allowed domain only
+  res.setHeader('Access-Control-Allow-Origin', allowedDomain);
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
 
@@ -10,7 +23,7 @@ export default async function handler(req, res) {
 
   const { num } = req.query;
 
-  // 1. اگر نمبر فراہم نہ کیا گیا ہو
+  // 2. Validation: Check if number is provided
   if (!num) {
     const errorResponse = {
       status: "error",
@@ -19,7 +32,7 @@ export default async function handler(req, res) {
     return res.status(400).send(JSON.stringify(errorResponse, null, 2));
   }
 
-  // واٹس ایپ ری ڈائریکشن والا ہیلپر فنکشن
+  // WhatsApp Redirect Helper Function
   const redirectToWhatsApp = () => {
     const customMsg = `سلام FTGM! اس نمبر (${num}) کا فریش ڈیٹا چاہیے، براہ کرم پرائس بتا دیں۔`;
     const whatsappUrl = `https://wa.me/923104882921?text=${encodeURIComponent(customMsg)}`;
@@ -30,7 +43,7 @@ export default async function handler(req, res) {
     const upstreamUrl = `https://ft-simdb.ftshehryar10044.workers.dev/ft/api?num=${encodeURIComponent(num)}`;
     const response = await fetch(upstreamUrl);
 
-    // 2. اگر API سے رسپانس 200 OK نہ آئے (مثلاً API ڈاؤن ہو یا 404/500 ایرر دے)
+    // 3. Upstream Error Check
     if (!response.ok) {
       return redirectToWhatsApp();
     }
@@ -40,12 +53,12 @@ export default async function handler(req, res) {
     const records = rawData.records || [];
     const recordCount = rawData.count || records.length;
 
-    // 3. اگر API کا رسپانس success نہ ہو یا کوئی ریکارڈ نہ ملے (Data Find Na Ho)
+    // 4. Data Not Found Check -> WhatsApp Redirect
     if (rawData.status !== "success" || recordCount === 0 || records.length === 0) {
       return redirectToWhatsApp();
     }
 
-    // 4. اگر تمام معلومات ٹھیک ہوں اور ڈیٹا مل جائے (Data Show With Credits)
+    // 5. Success Data Response
     const filteredData = {
       status: "success",
       number: rawData.number || num,
@@ -60,7 +73,6 @@ export default async function handler(req, res) {
     return res.status(200).send(JSON.stringify(filteredData, null, 2));
 
   } catch (error) {
-    // 5. اگر کوڈ میں یا نیٹ ورک کنیکشن میں کوئی بھی مسئلہ آئے تو بھی ڈائریکٹ واٹس ایپ پر ری ڈائریکٹ کر دو
     return redirectToWhatsApp();
   }
 }
