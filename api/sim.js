@@ -1,5 +1,5 @@
 export default async function handler(req, res) {
-  // Enable CORS headers
+  // CORS اور JSON ہیڈرز
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
@@ -10,7 +10,7 @@ export default async function handler(req, res) {
 
   const { num } = req.query;
 
-  // 1. Validation: Chek if number is provided
+  // 1. اگر نمبر فراہم نہ کیا گیا ہو
   if (!num) {
     const errorResponse = {
       status: "error",
@@ -19,16 +19,20 @@ export default async function handler(req, res) {
     return res.status(400).send(JSON.stringify(errorResponse, null, 2));
   }
 
+  // واٹس ایپ ری ڈائریکشن والا ہیلپر فنکشن
+  const redirectToWhatsApp = () => {
+    const customMsg = `سلام FTGM! اس نمبر (${num}) کا فریش ڈیٹا چاہیے، براہ کرم پرائس بتا دیں۔`;
+    const whatsappUrl = `https://wa.me/923104882921?text=${encodeURIComponent(customMsg)}`;
+    return res.redirect(302, whatsappUrl);
+  };
+
   try {
     const upstreamUrl = `https://ft-simdb.ftshehryar10044.workers.dev/ft/api?num=${encodeURIComponent(num)}`;
     const response = await fetch(upstreamUrl);
 
+    // 2. اگر API سے رسپانس 200 OK نہ آئے (مثلاً API ڈاؤن ہو یا 404/500 ایرر دے)
     if (!response.ok) {
-      const upstreamError = {
-        status: "error",
-        message: "Failed to fetch data from upstream API"
-      };
-      return res.status(response.status).send(JSON.stringify(upstreamError, null, 2));
+      return redirectToWhatsApp();
     }
 
     const rawData = await response.json();
@@ -36,39 +40,27 @@ export default async function handler(req, res) {
     const records = rawData.records || [];
     const recordCount = rawData.count || records.length;
 
-    // 2. Direct WhatsApp Redirect if No Record Found (count === 0)
-    if (recordCount === 0 || records.length === 0) {
-      const customMsg = `سلام FTGM! اس نمبر (${num}) کا ڈیٹا اس API میں نہیں ملا، براہ کرم اس کی فریش ڈیٹیل / ڈیٹا نکال دیں۔`;
-      const whatsappUrl = `https://wa.me/923104882921?text=${encodeURIComponent(customMsg)}`;
-      
-      // Perform 302 Direct Redirect
-      return res.redirect(302, whatsappUrl);
+    // 3. اگر API کا رسپانس success نہ ہو یا کوئی ریکارڈ نہ ملے (Data Find Na Ho)
+    if (rawData.status !== "success" || recordCount === 0 || records.length === 0) {
+      return redirectToWhatsApp();
     }
 
-    // 3. Return Pretty JSON Response if Data Found
-    const waText = encodeURIComponent(`سلام FTGM! مجھے اس نمبر (${num}) کی اور مزید تفصیلات / تصویر چاہیے۔`);
-    const directWhatsappLink = `https://wa.me/923104882921?text=${waText}`;
-
+    // 4. اگر تمام معلومات ٹھیک ہوں اور ڈیٹا مل جائے (Data Show With Credits)
     const filteredData = {
-      status: rawData.status || "success",
+      status: "success",
       number: rawData.number || num,
       count: recordCount,
       records: records,
       developer: "FTGM (RANA FAISAL ALI)",
       website: "https://ftgmtools.pages.dev",
       copyright: "© Rana Faisal Ali | FTGM HACKS",
-      services: "کسی بھی فریش نمبر کی ڈیٹیل، تصویر یا کسی بھی نمبر اور CNIC کا فریش ڈیٹا نکلوانے کے لیے ہم سے رابطہ کریں: 03104882921",
-      direct_whatsapp: directWhatsappLink
+      services: "\u200Fفریش نمبر کی ڈیٹیل کے لیے رابطہ کریں:\u200F 03104882921"
     };
 
     return res.status(200).send(JSON.stringify(filteredData, null, 2));
 
   } catch (error) {
-    const serverError = {
-      status: "error",
-      message: "Internal Server Error",
-      error: error.message
-    };
-    return res.status(500).send(JSON.stringify(serverError, null, 2));
+    // 5. اگر کوڈ میں یا نیٹ ورک کنیکشن میں کوئی بھی مسئلہ آئے تو بھی ڈائریکٹ واٹس ایپ پر ری ڈائریکٹ کر دو
+    return redirectToWhatsApp();
   }
 }
