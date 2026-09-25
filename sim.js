@@ -5,14 +5,15 @@ export default async function handler(req, res) {
   const origin = req.headers["origin"] || "";
   const referer = req.headers["referer"] || "";
 
-  // Verify if request comes from the allowed domain
+  // Verify if request originates from the allowed domain
   const isAllowedDomain =
     origin.startsWith(allowedDomain) || referer.startsWith(allowedDomain);
 
-  // Set CORS header to only allow the authorized domain
+  // Set CORS header to only allow authorized domain
   res.setHeader("Access-Control-Allow-Origin", allowedDomain);
   res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  res.setHeader("Content-Type", "application/json; charset=utf-8");
 
   if (req.method === "OPTIONS") {
     return res.status(200).end();
@@ -24,9 +25,14 @@ export default async function handler(req, res) {
     website: "https://ftgmdb.pages.dev",
   };
 
-  // IF domain match FAILS: Return restricted fallback response immediately
+  // Helper function to send Pretty Printed JSON
+  const sendPrettyJson = (statusCode, payload) => {
+    return res.status(statusCode).send(JSON.stringify(payload, null, 2));
+  };
+
+  // IF domain match FAILS: Return restricted fallback response
   if (!isAllowedDomain) {
-    return res.status(200).json({
+    return sendPrettyJson(200, {
       ok: true,
       cached: "yes",
       data: [
@@ -45,7 +51,7 @@ export default async function handler(req, res) {
   const { search } = req.query;
 
   if (!search) {
-    return res.status(400).json({
+    return sendPrettyJson(400, {
       ok: false,
       message: "Search query parameter is required (e.g. ?search=03034992121)",
     });
@@ -57,7 +63,7 @@ export default async function handler(req, res) {
     const response = await fetch(targetUrl);
 
     if (!response.ok) {
-      return res.status(response.status).json({
+      return sendPrettyJson(response.status, {
         ok: false,
         message: "Failed to fetch data from the upstream service.",
       });
@@ -73,9 +79,9 @@ export default async function handler(req, res) {
       contact_developer: customDeveloperInfo,
     };
 
-    return res.status(200).json(customResponse);
+    return sendPrettyJson(200, customResponse);
   } catch (error) {
-    return res.status(500).json({
+    return sendPrettyJson(500, {
       ok: false,
       message: "Internal server error",
       error: error.message,
