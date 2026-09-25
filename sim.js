@@ -39,9 +39,7 @@ app.get('/api/sim', async (req, res) => {
       )
     );
   }
-
-  try {
-    const targetUrl = `https://simownerdetails.net/wp-admin/admin-ajax.php?action=fetch_sim_data&term=${encodeURIComponent(query)}`;
+ent(query)}`;
 
     const response = await fetch(targetUrl, {
       method: 'GET',
