@@ -1,11 +1,22 @@
 {
-  "name": "ftgm-sim-api",
+  "name": "ftgm-stock-api",
   "version": "1.0.0",
-  "main": "sim.js",
+  "description": "FTGM SIM Information Lookup API on Vercel",
+  "main": "api/sim.js",
+  "type": "module",
   "scripts": {
-    "start": "node sim.js"
+    "dev": "vercel dev",
+    "build": "echo 'No build step required for Vercel Serverless Functions'"
   },
-  "dependencies": {
-    "express": "^4.19.2"
+  "keywords": [
+    "vercel",
+    "serverless",
+    "api",
+    "ftgm"
+  ],
+  "author": "RANA FAISAL ALI",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.x"
   }
 }
