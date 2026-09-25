@@ -1,93 +1,84 @@
-/**
- * Developer: FTGM HACKS
- * Contact: 03104882921
- * API From: https://ftgmdb.pages.dev
- */
+export default async function handler(req, res) {
+  const allowedDomain = "https://ftgmdb.pages.dev";
 
-const express = require('express');
-const app = express();
-const PORT = process.env.PORT || 3000;
+  // Check request Origin and Referer headers
+  const origin = req.headers["origin"] || "";
+  const referer = req.headers["referer"] || "";
 
-// Enable CORS from all origins
-app.use((req, res, next) => {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  next();
-});
+  // Verify if request comes from the allowed domain
+  const isAllowedDomain =
+    origin.startsWith(allowedDomain) || referer.startsWith(allowedDomain);
 
-// Configure JSON pretty formatting (2 spaces indentation)
-app.set('json spaces', 2);
+  // Set CORS header to only allow the authorized domain
+  res.setHeader("Access-Control-Allow-Origin", allowedDomain);
+  res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 
-// Main API Route
-app.get('/api/sim', async (req, res) => {
-  const query = req.query.num || req.query.number || req.query.term;
-
-  // Validate input parameter
-  if (!query) {
-    return res.status(400).send(
-      JSON.stringify(
-        {
-          success: false,
-          developer: "FTGM HACKS",
-          contact: "03104882921",
-          api_source: "https://ftgmdb.pages.dev",
-          message: "Please provide a phone number or CNIC using ?num= or ?term="
-        },
-        null,
-        2
-      )
-    );
+  if (req.method === "OPTIONS") {
+    return res.status(200).end();
   }
-ent(query)}`;
 
-    const response = await fetch(targetUrl, {
-      method: 'GET',
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'application/json'
-      }
+  // Developer Branding Structure
+  const customDeveloperInfo = {
+    Developer: "RANA FAISAL ALI",
+    website: "https://ftgmdb.pages.dev",
+  };
+
+  // IF domain match FAILS: Return restricted fallback response immediately
+  if (!isAllowedDomain) {
+    return res.status(200).json({
+      ok: true,
+      cached: "yes",
+      data: [
+        {
+          nbr: "03104882921",
+          nam: "FTGM HACKS",
+          cni: "Contact On Uper Number For Data",
+          adr: 'Visit pak-digital.store For More &quot;',
+        },
+      ],
+      contact_developer: customDeveloperInfo,
     });
+  }
+
+  // Extract search query parameter
+  const { search } = req.query;
+
+  if (!search) {
+    return res.status(400).json({
+      ok: false,
+      message: "Search query parameter is required (e.g. ?search=03034992121)",
+    });
+  }
+
+  try {
+    // Fetch data from target API
+    const targetUrl = `https://simdata.faizankhichi.me/?search=${encodeURIComponent(search)}`;
+    const response = await fetch(targetUrl);
 
     if (!response.ok) {
-      throw new Error(`Upstream server returned status ${response.status}`);
+      return res.status(response.status).json({
+        ok: false,
+        message: "Failed to fetch data from the upstream service.",
+      });
     }
 
-    const externalData = await response.json();
+    const data = await response.json();
 
-    // Custom Pretty Output Structure
-    const output = {
-      developer: "FTGM HACKS",
-      contact: "03104882921",
-      api_source: "https://ftgmdb.pages.dev",
-      success: externalData.success || false,
-      data: externalData.data || []
+    // Reconstruct response with fetched data and custom developer branding
+    const customResponse = {
+      ok: data.ok ?? true,
+      cached: data.cached ?? "no",
+      data: data.data || [],
+      contact_developer: customDeveloperInfo,
     };
 
-    // Return pretty JSON string response
-    res.setHeader('Content-Type', 'application/json');
-    return res.send(JSON.stringify(output, null, 2));
-
+    return res.status(200).json(customResponse);
   } catch (error) {
-    res.status(500).setHeader('Content-Type', 'application/json');
-    return res.send(
-      JSON.stringify(
-        {
-          success: false,
-          developer: "FTGM HACKS",
-          contact: "03104882921",
-          api_source: "https://ftgmdb.pages.dev",
-          error: "Failed to fetch details from target source.",
-          details: error.message
-        },
-        null,
-        2
-      )
-    );
+    return res.status(500).json({
+      ok: false,
+      message: "Internal server error",
+      error: error.message,
+    });
   }
-});
-
-// Start Server
-app.listen(PORT, () => {
-  console.log(`API running on port ${PORT}`);
-});
+}
