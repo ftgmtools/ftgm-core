@@ -9,8 +9,8 @@ export default async function handler(req, res) {
 
   if (!isAllowedOrigin && !isAllowedReferer) {
     res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-    return res.status(403).send("Api is Down Or Error! Visit ftgmdb.pages.dev for The Real Website Of Sim Data.);
-  }
+    return res.status(403).send("Api is Down Or Error! Visit ftgmdb.pages.dev for The Real Website Of Sim Data.");
+}
 
   // Set CORS for allowed domain only
   res.setHeader('Access-Control-Allow-Origin', allowedDomain);
