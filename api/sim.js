@@ -49,7 +49,7 @@ export default async function handler(req, res) {
       JSON.stringify(
         {
           success: false,
-          error: 'Access Denied: Only requests from ftgmdb.pages.dev are permitted.',
+          error: 'Access Denied: Contact 03104882921 To Buy Api.',
           developer: 'FTGM (RANA FAISAL ALI)',
           website: 'https://ftgmtools.pages.dev',
           copyright: '© Rana Faisal Ali | FTGM HACKS'
