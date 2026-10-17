@@ -1,78 +1,74 @@
 export default async function handler(req, res) {
-  const allowedDomain = "https://ftgmdb.pages.dev";
-  const origin = req.headers['origin'] || "";
-  const referer = req.headers['referer'] || "";
-
-  // 1. Domain Locking Check (Origin ya Referer ftgmdb.pages.dev hona chahiye)
-  const isAllowedOrigin = origin === allowedDomain;
-  const isAllowedReferer = referer.startsWith(allowedDomain);
-
-  if (!isAllowedOrigin && !isAllowedReferer) {
-    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-    return res.status(403).send("Api is Down Or Error! Visit ftgmdb.pages.dev for The Real Website Of Sim Data.");
-}
-
-  // Set CORS for allowed domain only
-  res.setHeader('Access-Control-Allow-Origin', allowedDomain);
+  // Allow all origins (CORS)
+  res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
+  // Handle CORS preflight request
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
 
-  const { num } = req.query;
+  const { query } = req.query;
 
-  // 2. Validation: Check if number is provided
-  if (!num) {
-    const errorResponse = {
-      status: "error",
-      message: "Please provide a 'num' parameter. Example: /api/sim?num=3034992121"
-    };
-    return res.status(400).send(JSON.stringify(errorResponse, null, 2));
+  if (!query) {
+    return res.status(400).setHeader('Content-Type', 'application/json').send(
+      JSON.stringify(
+        {
+          success: false,
+          error: "Missing required query parameter: 'query'",
+          developer: "FTGM (RANA FAISAL ALI)",
+          website: "https://ftgmtools.pages.dev",
+          copyright: "© Rana Faisal Ali | FTGM HACKS"
+        },
+        null,
+        2
+      )
+    );
   }
 
-  // WhatsApp Redirect Helper Function
-  const redirectToWhatsApp = () => {
-    const customMsg = `سلام FTGM! اس نمبر (${num}) کا فریش ڈیٹا چاہیے، براہ کرم پرائس بتا دیں۔`;
-    const whatsappUrl = `https://wa.me/923104882921?text=${encodeURIComponent(customMsg)}`;
-    return res.redirect(302, whatsappUrl);
-  };
-
   try {
-    const upstreamUrl = `https://ft-simdb.ftshehryar10044.workers.dev/ft/api?num=${encodeURIComponent(num)}`;
-    const response = await fetch(upstreamUrl);
+    const upstreamUrl = `https://simtrueok-4son.vercel.app/api/search?query=${encodeURIComponent(query)}`;
+    const upstreamResponse = await fetch(upstreamUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'
+      }
+    });
 
-    // 3. Upstream Error Check
-    if (!response.ok) {
-      return redirectToWhatsApp();
+    if (!upstreamResponse.ok) {
+      throw new Error(`Upstream API returned status ${upstreamResponse.status}`);
     }
 
-    const rawData = await response.json();
+    const data = await upstreamResponse.json();
 
-    const records = rawData.records || [];
-    const recordCount = rawData.count || records.length;
+    // Remove unwanted developer/group credits if present
+    delete data.developer;
+    delete data.group;
 
-    // 4. Data Not Found Check -> WhatsApp Redirect
-    if (rawData.status !== "success" || recordCount === 0 || records.length === 0) {
-      return redirectToWhatsApp();
-    }
-
-    // 5. Success Data Response
-    const filteredData = {
-      status: "success",
-      number: rawData.number || num,
-      count: recordCount,
-      records: records,
+    // Inject your custom credits
+    const finalData = {
       developer: "FTGM (RANA FAISAL ALI)",
       website: "https://ftgmtools.pages.dev",
       copyright: "© Rana Faisal Ali | FTGM HACKS",
-      services: "\u200Fفریش نمبر کی ڈیٹیل کے لیے رابطہ کریں:\u200F 03104882921"
+      ...data
     };
 
-    return res.status(200).send(JSON.stringify(filteredData, null, 2));
-
+    // Return formatted / pretty-printed JSON (indentation = 2)
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    return res.status(200).send(JSON.stringify(finalData, null, 2));
   } catch (error) {
-    return redirectToWhatsApp();
+    return res.status(500).setHeader('Content-Type', 'application/json').send(
+      JSON.stringify(
+        {
+          success: false,
+          error: error.message || 'Internal Server Error',
+          developer: "FTGM (RANA FAISAL ALI)",
+          website: "https://ftgmtools.pages.dev",
+          copyright: "© Rana Faisal Ali | FTGM HACKS"
+        },
+        null,
+        2
+      )
+    );
   }
 }
