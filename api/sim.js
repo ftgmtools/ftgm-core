@@ -41,7 +41,7 @@ export default async function handler(req, res) {
       throw new Error('Upstream API server returned an invalid response');
     }
 
-    // Remove third-party credits/groups
+    // یہاں سے truecaller_data اور دیگر غیر ضروری فیلڈز فلٹر ہو جائیں گی
     const { 
       developer: _dev, 
       group: _grp, 
@@ -49,17 +49,18 @@ export default async function handler(req, res) {
       channel: _ch, 
       credit: _crd, 
       credits: _crds, 
+      truecaller_data: _tc, 
       ...cleanData 
     } = rawData;
 
-    // Attach your verified credits
+    // آپ کے اپنے کریڈٹس
     const finalData = {
       ...cleanData,
       developer: 'Rana Faisal Ali',
       website: 'https://ftgmtools.pages.dev'
     };
 
-    // Return Pretty-Printed JSON (Indented with 2 spaces)
+    // Pretty-Printed JSON (2-space indented)
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
     return res.status(200).send(JSON.stringify(finalData, null, 2));
 
