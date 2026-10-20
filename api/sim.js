@@ -1,61 +1,36 @@
 export default async function handler(req, res) {
-  const allowedHost = 'ftgmdb.pages.dev';
+  // Allow all origins (No restrictions)
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
 
-  // Read request origin, referer, and host
-  const origin = req.headers['origin'] || '';
-  const referer = req.headers['referer'] || '';
-
-  const getHostname = (urlStr) => {
-    try {
-      return new URL(urlStr).hostname;
-    } catch {
-      return '';
-    }
-  };
-
-  const originHost = getHostname(origin);
-  const refererHost = getHostname(referer);
-
-  // Validate whether the request originates from ftgmdb.pages.dev
-  const isAuthorized = originHost === allowedHost || refererHost === allowedHost;
-
-  // Handle CORS Preflight
+  // Handle preflight requests
   if (req.method === 'OPTIONS') {
-    if (isAuthorized) {
-      res.setHeader('Access-Control-Allow-Origin', `https://${allowedHost}`);
-      res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
-      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-      return res.status(200).end();
-    }
-    return res.status(403).end();
+    return res.status(200).end();
   }
 
-  // Block unauthorized requests
-  if (!isAuthorized) {
-    res.setHeader('Content-Type', 'application/json');
-    return res.status(403).json({
-      status: 'error',
-      message: 'Access Denied: Requests are restricted to ftgmdb.pages.dev only.',
-      developer: 'Rana Faisal Ali',
-      website: 'https://ftgmtools.pages.dev'
-    });
-  }
-
-  // Set CORS for authorized domain
-  res.setHeader('Access-Control-Allow-Origin', `https://${allowedHost}`);
-  res.setHeader('Access-Control-Allow-Credentials', 'true');
-
-  // Accept either ?num= or ?query= for flexibility
-  const queryParam = req.query.num || req.query.query;
+  // Accept query via ?query= or ?num=
+  const queryParam = req.query.query || req.query.num;
   const { format } = req.query;
 
   if (!queryParam) {
+    if (format === 'json') {
+      res.setHeader('Content-Type', 'application/json');
+      return res.status(400).json({
+        status: 'error',
+        message: 'Missing parameter: Please provide ?query= or ?num=',
+        developer: 'Rana Faisal Ali',
+        website: 'https://ftgmtools.pages.dev'
+      });
+    }
+
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
     return res.status(400).send(`
       <!DOCTYPE html>
       <html lang="en">
       <head>
         <meta charset="UTF-8">
-        <title>API Preview - Missing Parameter</title>
+        <title>API Error - Missing Parameter</title>
         <style>
           body { font-family: system-ui, sans-serif; background: #0b0f19; color: #f8fafc; display: grid; place-items: center; height: 100vh; margin: 0; }
           .card { background: #111827; padding: 2rem; border-radius: 12px; border: 1px solid #1f2937; text-align: center; max-width: 420px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.4); }
@@ -65,8 +40,8 @@ export default async function handler(req, res) {
       <body>
         <div class="card">
           <h2 style="color: #ef4444; margin-top: 0;">Missing Parameter</h2>
-          <p style="color: #94a3b8;">Please provide a mobile number or CNIC to look up.</p>
-          <p>Example: <code>?num=03034992121</code></p>
+          <p style="color: #94a3b8;">Please provide a mobile number or CNIC.</p>
+          <p>Example: <code>?query=03034992121</code></p>
         </div>
       </body>
       </html>
@@ -75,38 +50,47 @@ export default async function handler(req, res) {
 
   try {
     const targetUrl = `https://simtrueok-ten.vercel.app/api/search?query=${encodeURIComponent(queryParam)}`;
-    const response = await fetch(targetUrl);
+    
+    const response = await fetch(targetUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+      }
+    });
 
-    if (!response.ok) {
-      throw new Error(`Upstream server responded with status ${response.status}`);
+    const rawText = await response.text();
+    let rawData;
+
+    try {
+      rawData = JSON.parse(rawText);
+    } catch {
+      throw new Error('Upstream provider returned an invalid response or HTML page');
     }
 
-    const rawData = await response.json();
+    // Strip out third-party credits and unwanted metadata
+    const { developer: _dev, group: _grp, whatsapp: _wa, channel: _ch, ...cleanData } = rawData;
 
-    // Strip out third-party branding/credits
-    const { developer: _dev, group: _grp, whatsapp: _wa, ...cleanData } = rawData;
-
-    // Attach custom branding & credits
+    // Attach your credits
     const finalData = {
       ...cleanData,
       developer: 'Rana Faisal Ali',
       website: 'https://ftgmtools.pages.dev'
     };
 
-    // Return raw JSON if explicitly requested
-    if (format === 'json') {
+    // Return raw JSON when requested or when called via standard frontend fetch
+    const acceptsHtml = req.headers['accept'] && req.headers['accept'].includes('text/html');
+    if (format === 'json' || (!acceptsHtml && format !== 'html')) {
       res.setHeader('Content-Type', 'application/json');
       return res.status(200).json(finalData);
     }
 
-    // Determine records array regardless of upstream key formatting
+    // Extract records list
     const records = Array.isArray(finalData.records)
       ? finalData.records
       : Array.isArray(finalData.data)
       ? finalData.data
-      : [];
+      : (finalData.name || finalData.cnic) ? [finalData] : [];
 
-    // Styled Pretty Preview
+    // Return styled HTML preview for direct browser visits
     const htmlResponse = `
       <!DOCTYPE html>
       <html lang="en">
@@ -115,36 +99,27 @@ export default async function handler(req, res) {
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Record Details - ${queryParam}</title>
         <style>
-          * { box-sizing: border-box; }
+          * { box-sizing: border-box; margin: 0; padding: 0; }
           body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
             background-color: #0b0f19;
             color: #e2e8f0;
             padding: 2.5rem 1rem;
-            margin: 0;
             display: flex;
             justify-content: center;
           }
-          .container {
-            width: 100%;
-            max-width: 720px;
-          }
+          .container { width: 100%; max-width: 720px; }
           .header {
             margin-bottom: 1.5rem;
             display: flex;
             justify-content: space-between;
             align-items: center;
           }
-          .title {
-            font-size: 1.35rem;
-            font-weight: 700;
-            color: #f8fafc;
-            margin: 0;
-          }
+          .title { font-size: 1.4rem; font-weight: 700; color: #f8fafc; }
           .badge {
-            background: #10b98120;
+            background: rgba(16, 185, 129, 0.15);
             color: #34d399;
-            border: 1px solid #10b98140;
+            border: 1px solid rgba(16, 185, 129, 0.3);
             padding: 4px 10px;
             border-radius: 9999px;
             font-size: 0.8rem;
@@ -176,9 +151,7 @@ export default async function handler(req, res) {
             color: #f1f5f9;
             word-break: break-word;
           }
-          .full-width {
-            grid-column: 1 / -1;
-          }
+          .full-width { grid-column: 1 / -1; }
           pre {
             background: #030712;
             border: 1px solid #1f2937;
@@ -186,9 +159,8 @@ export default async function handler(req, res) {
             padding: 1rem;
             overflow-x: auto;
             color: #38bdf8;
-            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            font-family: ui-monospace, Menlo, Consolas, monospace;
             font-size: 0.85rem;
-            margin: 0;
           }
           .footer {
             margin-top: 2rem;
@@ -198,14 +170,7 @@ export default async function handler(req, res) {
             border-top: 1px solid #1f2937;
             padding-top: 1.25rem;
           }
-          .footer a {
-            color: #38bdf8;
-            text-decoration: none;
-            font-weight: 500;
-          }
-          .footer a:hover {
-            text-decoration: underline;
-          }
+          .footer a { color: #38bdf8; text-decoration: none; font-weight: 500; }
         </style>
       </head>
       <body>
@@ -219,7 +184,7 @@ export default async function handler(req, res) {
             <div class="card">
               <div class="grid">
                 <div>
-                  <div class="item-label">Name</div>
+                  <div class="item-label">Full Name</div>
                   <div class="item-value">${rec.name || rec.full_name || 'N/A'}</div>
                 </div>
                 <div>
@@ -242,7 +207,7 @@ export default async function handler(req, res) {
             </div>
           `).join('') : `
             <div class="card">
-              <p style="margin: 0; color: #94a3b8;">No records found for this query.</p>
+              <p style="color: #94a3b8;">No records found for this query.</p>
             </div>
           `}
 
@@ -263,6 +228,7 @@ export default async function handler(req, res) {
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     return res.status(200).send(htmlResponse);
   } catch (err) {
+    res.setHeader('Content-Type', 'application/json');
     return res.status(500).json({
       status: 'error',
       message: err.message || 'Error processing request',
