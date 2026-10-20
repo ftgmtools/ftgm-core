@@ -1,19 +1,57 @@
 export default async function handler(req, res) {
-  // CORS Headers (Allowed from all origins)
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+  const allowedHost = 'ftgmdb.pages.dev';
+
+  // Extract Origin and Referer
+  const origin = req.headers['origin'] || '';
+  const referer = req.headers['referer'] || '';
+
+  const getHostname = (urlStr) => {
+    try {
+      return new URL(urlStr).hostname;
+    } catch {
+      return '';
+    }
+  };
+
+  const originHost = getHostname(origin);
+  const refererHost = getHostname(referer);
+
+  // Check if request is strictly from ftgmdb.pages.dev
+  const isAuthorized = originHost === allowedHost || refererHost === allowedHost;
 
   // Preflight check
   if (req.method === 'OPTIONS') {
-    return res.status(200).end();
+    if (isAuthorized) {
+      res.setHeader('Access-Control-Allow-Origin', `https://${allowedHost}`);
+      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+      return res.status(200).end();
+    }
+    return res.status(403).end();
   }
+
+  // Set response to Pretty-Printed JSON
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+
+  // Block unauthorized requests
+  if (!isAuthorized) {
+    const blockedResponse = {
+      status: "error",
+      message: "Dear Copy Paster you are Chutiya",
+      developer: "Rana Faisal Ali",
+      website: "https://ftgmtools.pages.dev"
+    };
+    return res.status(403).send(JSON.stringify(blockedResponse, null, 2));
+  }
+
+  // Set CORS for allowed domain
+  res.setHeader('Access-Control-Allow-Origin', `https://${allowedHost}`);
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
 
   // Accept ?query= or ?num=
   const queryParam = req.query.query || req.query.num;
 
   if (!queryParam) {
-    res.setHeader('Content-Type', 'application/json; charset=utf-8');
     const errorResponse = {
       status: 'error',
       message: 'Please provide mobile number or CNIC (?query=03034992121)',
@@ -41,7 +79,7 @@ export default async function handler(req, res) {
       throw new Error('Upstream API server returned an invalid response');
     }
 
-    // یہاں سے truecaller_data اور دیگر غیر ضروری فیلڈز فلٹر ہو جائیں گی
+    // Filter unwanted fields & external credits
     const { 
       developer: _dev, 
       group: _grp, 
@@ -53,19 +91,17 @@ export default async function handler(req, res) {
       ...cleanData 
     } = rawData;
 
-    // آپ کے اپنے کریڈٹس
+    // Attach verified credits
     const finalData = {
       ...cleanData,
       developer: 'Rana Faisal Ali',
       website: 'https://ftgmtools.pages.dev'
     };
 
-    // Pretty-Printed JSON (2-space indented)
-    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    // Return Indented Pretty JSON
     return res.status(200).send(JSON.stringify(finalData, null, 2));
 
   } catch (err) {
-    res.setHeader('Content-Type', 'application/json; charset=utf-8');
     const errObj = {
       status: 'error',
       message: err.message || 'Error fetching details',
