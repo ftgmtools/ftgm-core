@@ -1,11 +1,11 @@
 {
-  "name": "ftgm-sim-api",
+  "name": "custom-eyecon-api",
   "version": "1.0.0",
-  "description": "SIM Database API Endpoint by FTGM",
-  "main": "api/sim.js",
+  "description": "API proxy with custom credits",
+  "main": "api/lookup.js",
+  "type": "module",
   "scripts": {
-    "dev": "vercel dev",
-    "deploy": "vercel --prod"
+    "start": "vercel dev"
   },
   "dependencies": {}
 }
