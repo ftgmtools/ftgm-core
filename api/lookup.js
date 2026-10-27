@@ -27,12 +27,29 @@ export default async function handler(req, res) {
   }
 
   try {
-    // 3. Fetch data from source API
     const targetUrl = `https://eyecon.faizankhichi.me/api/lookup?number=${encodeURIComponent(number)}`;
-    const response = await fetch(targetUrl);
+
+    // 3. Fetch with browser emulation headers to prevent 403 Forbidden
+    const response = await fetch(targetUrl, {
+      method: 'GET',
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'Accept': 'application/json, text/plain, */*',
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Referer': 'https://eyecon.faizankhichi.me/',
+        'Origin': 'https://eyecon.faizankhichi.me',
+        'Sec-Ch-Ua': '"Not-A.Brand";v="99", "Chromium";v="124"',
+        'Sec-Ch-Ua-Mobile': '?0',
+        'Sec-Ch-Ua-Platform': '"Windows"',
+        'Sec-Fetch-Dest': 'empty',
+        'Sec-Fetch-Mode': 'cors',
+        'Sec-Fetch-Site': 'same-origin'
+      }
+    });
 
     if (!response.ok) {
-      throw new Error(`Upstream API error: ${response.statusText}`);
+      const errorText = await response.text().catch(() => '');
+      throw new Error(`Upstream API returned status ${response.status}: ${errorText || response.statusText}`);
     }
 
     const data = await response.json();
@@ -41,7 +58,7 @@ export default async function handler(req, res) {
     delete data.brand;
     delete data.powered_by;
 
-    // 5. Append custom credits
+    // 5. Append your custom credits
     const customResponse = {
       ...data,
       developer: "Rana Faisal Ali (FTGM)",
@@ -67,5 +84,4 @@ export default async function handler(req, res) {
       )
     );
   }
-          }
-  
+}
