@@ -1,11 +1,18 @@
 {
-  "name": "custom-eyecon-api",
+  "name": "multi-api-aggregator",
   "version": "1.0.0",
-  "description": "API proxy with custom credits",
-  "main": "api/lookup.js",
-  "type": "module",
+  "description": "API aggregator fetching from four distinct endpoints with a pretty HTML and JSON preview",
+  "main": "api/index.js",
   "scripts": {
     "start": "vercel dev"
   },
+  "keywords": [
+    "vercel",
+    "api",
+    "aggregator",
+    "ftgmhacks"
+  ],
+  "author": "Rana Faisal Ali",
+  "license": "MIT",
   "dependencies": {}
 }
