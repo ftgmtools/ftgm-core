@@ -1,10 +1,7 @@
 export default async function handler(req, res) {
-  // Get the query parameter (supports ?number= or ?num=)
+  // Get query parameter (supports ?number= or ?num=)
   const queryNum = req.query.number || req.query.num || '923277298973';
-
-  if (!queryNum) {
-    return res.status(400).json({ error: 'Please provide a number parameter, e.g., ?number=923277298973' });
-  }
+  const isDebug = req.query.debug === 'true' || req.query.debug === '1';
 
   // Define the 4 API endpoints
   const api1Url = `https://faisal-ali-truecaller.ftgmhacks.workers.dev/?key=ftgm2&number=${queryNum}`;
@@ -12,21 +9,49 @@ export default async function handler(req, res) {
   const api3Url = `https://alnayeem.top/nahid.php?number=${queryNum}`;
   const api4Url = `https://ftgm-simdb-api.vercel.app/api/sim?num=${queryNum}`;
 
+  // Helper function to safely fetch and parse JSON without crashing
+  async function fetchSafe(url) {
+    try {
+      const response = await fetch(url, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': 'application/json, text/plain, */*'
+        }
+      });
+      const text = await response.text();
+      try {
+        return { success: true, status: response.status, data: JSON.parse(text) };
+      } catch (e) {
+        return { success: false, status: response.status, error: 'Not JSON', raw: text.substring(0, 200) };
+      }
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  }
+
   try {
-    // Fetch all 4 APIs concurrently for maximum speed
-    const [res1, res2, res3, res4] = await Promise.allSettled([
-      fetch(api1Url).then(r => r.json()),
-      fetch(api2Url).then(r => r.json()),
-      fetch(api3Url).then(r => r.json()),
-      fetch(api4Url).then(r => r.json())
+    // Fetch all 4 APIs concurrently
+    const [res1, res2, res3, res4] = await Promise.all([
+      fetchSafe(api1Url),
+      fetchSafe(api2Url),
+      fetchSafe(api3Url),
+      fetchSafe(api4Url)
     ]);
 
-    const data1 = res1.status === 'fulfilled' ? res1.value : null;
-    const data2 = res2.status === 'fulfilled' ? res2.value : null;
-    const data3 = res3.status === 'fulfilled' ? res3.value : null;
-    const data4 = res4.status === 'fulfilled' ? res4.value : null;
+    // If debug mode is enabled, return raw responses so you can inspect what each API returned
+    if (isDebug) {
+      return res.status(200).json({
+        query: queryNum,
+        debug_results: { api1: res1, api2: res2, api3: res3, api4: res4 }
+      });
+    }
 
-    // Extract exact requested fields from each response
+    // Extract fields safely
+    const data1 = res1.success ? res1.data : null;
+    const data2 = res2.success ? res2.data : null;
+    const data3 = res3.success ? res3.data : null;
+    const data4 = res4.success ? res4.data : null;
+
     const truecallerName = data1?.data?.name || 'Not Available';
     
     const nameIntel = {
@@ -36,7 +61,7 @@ export default async function handler(req, res) {
       V3: data2?.V3 || 'Not Available'
     };
 
-    const nahidName = data3?.result?.caller_info?.raw_data?.[0]?.name || 'Not Available';
+    const nahidName = data3?.result?.caller_info?.raw_data?.[0]?.name || data3?.caller_info?.raw_data?.[0]?.name || 'Not Available';
     const simRecords = data4?.records || [];
 
     // Check if JSON response was requested via header or ?format=json
@@ -86,7 +111,7 @@ export default async function handler(req, res) {
                     <h2 class="font-semibold text-blue-400 flex items-center gap-2">
                         <span class="w-2.5 h-2.5 rounded-full bg-blue-500 animate-pulse"></span> Truecaller API
                     </h2>
-                    <span class="text-xs bg-blue-500/10 text-blue-400 px-2.5 py-1 rounded-full border border-blue-500/20">API 1</span>
+                    <span class="text-xs bg-blue-500/10 text-blue-400 px-2.5 py-1 rounded-full border border-blue-500/20">${res1.success ? 'Online' : 'Error'}</span>
                 </div>
                 <div class="bg-slate-950 border border-slate-800 rounded-xl p-3 font-mono text-emerald-400 text-sm">
                     "name": "${truecallerName}"
@@ -99,7 +124,7 @@ export default async function handler(req, res) {
                     <h2 class="font-semibold text-purple-400 flex items-center gap-2">
                         <span class="w-2.5 h-2.5 rounded-full bg-purple-500 animate-pulse"></span> Name Intelligence
                     </h2>
-                    <span class="text-xs bg-purple-500/10 text-purple-400 px-2.5 py-1 rounded-full border border-purple-500/20">API 2</span>
+                    <span class="text-xs bg-purple-500/10 text-purple-400 px-2.5 py-1 rounded-full border border-purple-500/20">${res2.success ? 'Online' : 'Error'}</span>
                 </div>
                 <div class="space-y-2 font-mono text-xs">
                     <div class="bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-slate-300">
@@ -123,7 +148,7 @@ export default async function handler(req, res) {
                     <h2 class="font-semibold text-emerald-400 flex items-center gap-2">
                         <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span> Nahid Caller Info
                     </h2>
-                    <span class="text-xs bg-emerald-500/10 text-emerald-400 px-2.5 py-1 rounded-full border border-emerald-500/20">API 3</span>
+                    <span class="text-xs bg-emerald-500/10 text-emerald-400 px-2.5 py-1 rounded-full border border-emerald-500/20">${res3.success ? 'Online' : 'Error'}</span>
                 </div>
                 <div class="bg-slate-950 border border-slate-800 rounded-xl p-3 font-mono text-emerald-400 text-sm">
                     "name": "${nahidName}"
@@ -136,7 +161,7 @@ export default async function handler(req, res) {
                     <h2 class="font-semibold text-amber-400 flex items-center gap-2">
                         <span class="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse"></span> SIM Database
                     </h2>
-                    <span class="text-xs bg-amber-500/10 text-amber-400 px-2.5 py-1 rounded-full border border-amber-500/20">API 4</span>
+                    <span class="text-xs bg-amber-500/10 text-amber-400 px-2.5 py-1 rounded-full border border-amber-500/20">${res4.success ? 'Online' : 'Error'}</span>
                 </div>
                 <div class="space-y-3 max-h-60 overflow-y-auto pr-1">
                     ${simRecords.length > 0 ? simRecords.map(rec => `
@@ -153,8 +178,9 @@ export default async function handler(req, res) {
 
         </div>
 
-        <div class="text-center text-xs text-slate-500 pt-4">
-            Unified Vercel Serverless Function &bull; Powered by Tailwind CSS
+        <div class="flex justify-between items-center text-xs text-slate-500 pt-4">
+            <span>Unified Vercel Serverless Function</span>
+            <a href="?number=${queryNum}&debug=true" class="text-blue-400 hover:underline">Check Debug Data &rarr;</a>
         </div>
     </div>
 </body>
@@ -164,6 +190,6 @@ export default async function handler(req, res) {
     return res.status(200).send(html);
 
   } catch (error) {
-    return res.status(500).json({ error: 'Failed to fetch external APIs', details: error.message });
+    return res.status(500).json({ error: 'Internal Server Error', details: error.message });
   }
-      }
+}
