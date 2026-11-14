@@ -1,4 +1,27 @@
 export default async function handler(req, res) {
+  const allowedOrigin = 'https://ftgmdb.pages.dev';
+  const origin = req.headers.origin || '';
+  const referer = req.headers.referer || '';
+
+  // Strict Domain Locking: Sirf ftgmdb.pages.dev ko allow karega
+  if (origin !== allowedOrigin && !referer.startsWith(allowedOrigin)) {
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    return res.status(403).send(JSON.stringify({
+      status: "error",
+      message: "FTGM HACKS OFFICIAL APIS ARE NOT ALLOWED FOR PUBLIC USE"
+    }, null, 2));
+  }
+
+  // CORS Headers sirf allowed domain ke liye
+  res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+  // Preflight request handling
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+
   const queryNum = req.query.number || req.query.num || '923277298973';
 
   if (!queryNum) {
