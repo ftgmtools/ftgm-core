@@ -12,47 +12,62 @@ export default async function handler(req, res) {
     }, null, 2));
   }
 
-  // CORS Headers sirf allowed domain ke liye
+  // CORS Headers
   res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-  // Preflight request handling
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
 
-  const queryNum = req.query.number || req.query.num || '923277298973';
-
-  if (!queryNum) {
-    return res.status(400).json({ error: 'Please provide a number parameter, e.g., ?number=923277298973' });
+  let rawNum = req.query.number || req.query.num || '923277298973';
+  if (!rawNum) {
+    return res.status(400).json({ error: 'Please provide a number parameter' });
   }
 
-  // Define the 4 API endpoints
-  const api1Url = `https://faisal-ali-truecaller.ftgmhacks.workers.dev/?key=ftgm2&number=${queryNum}`;
-  const api2Url = `https://name-intelligence.ftgmhacks.workers.dev/?number=${queryNum}`;
-  const api3Url = `https://alnayeem.top/nahid.php?number=${queryNum}`;
-  const api4Url = `https://ftgm-simdb-api.vercel.app/api/sim?num=${queryNum}`;
+  // Number ko clean karein (sirf digits rakhein)
+  const cleanDigits = rawNum.toString().replace(/\D/g, '');
+  
+  // 92 format (e.g., 923277298973)
+  const num92 = cleanDigits.startsWith('0') 
+    ? '92' + cleanDigits.slice(1) 
+    : (cleanDigits.startsWith('92') ? cleanDigits : '92' + cleanDigits);
 
-  // Helper function with timeout to prevent hanging / high load
+  // 03 format (e.g., 03277298973) - Nahid Caller aksar 03 format maangta hai
+  const num03 = '0' + num92.slice(2);
+
+  // Define the 4 API endpoints
+  const api1Url = `https://faisal-ali-truecaller.ftgmhacks.workers.dev/?key=ftgm2&number=${num92}`;
+  const api2Url = `https://name-intelligence.ftgmhacks.workers.dev/?number=${num92}`;
+  const api3Url = `https://alnayeem.top/nahid.php?number=${num03}`;
+  const api4Url = `https://ftgm-simdb-api.vercel.app/api/sim?num=${num92}`;
+
+  // Helper function with 12s timeout and proper headers
   async function fetchSafe(url) {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 6000); // 6 seconds timeout
+      const timeoutId = setTimeout(() => controller.abort(), 12000); // 12 seconds timeout
       
       const response = await fetch(url, {
         headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-          'Accept': 'application/json'
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': 'application/json, text/plain, */*',
+          'Origin': 'https://ftgmdb.pages.dev',
+          'Referer': 'https://ftgmdb.pages.dev/'
         },
         signal: controller.signal
       });
       clearTimeout(timeoutId);
       
-      if (!response.ok) return null;
-      return await response.json();
+      const text = await response.text();
+      try {
+        return JSON.parse(text);
+      } catch (e) {
+        return { _rawError: text.slice(0, 150), _status: response.status };
+      }
     } catch (err) {
-      return null;
+      return { _fetchError: err.message };
     }
   }
 
@@ -64,21 +79,25 @@ export default async function handler(req, res) {
     fetchSafe(api4Url)
   ]);
 
-  // Extract exact fields requested
+  // Extract exact fields (multiple fallback paths added)
   const outputData = {
     status: "success",
-    query: queryNum,
+    query: num92,
     truecaller: {
-      name: data1?.data?.name || "Not Available"
+      name: data1?.data?.name || data1?.name || data1?.result?.name || "Not Available"
     },
     name_intelligence: {
-      fullName: data2?.fullName || "Not Available",
+      fullName: data2?.fullName || data2?.data?.fullName || "Not Available",
       V1: data2?.V1 || "Not Available",
       V2: data2?.V2 || "Not Available",
       V3: data2?.V3 || "Not Available"
     },
     nahid_caller: {
-      name: data3?.result?.caller_info?.raw_data?.[0]?.name || data3?.caller_info?.raw_data?.[0]?.name || "Not Available"
+      name: data3?.result?.caller_info?.raw_data?.[0]?.name || 
+            data3?.caller_info?.raw_data?.[0]?.name || 
+            data3?.name || 
+            data3?.data?.name || 
+            "Not Available"
     },
     sim_database: data4?.records ? data4.records.map(rec => ({
       name: rec.name || "Not Available",
@@ -89,7 +108,11 @@ export default async function handler(req, res) {
     })) : []
   };
 
-  // Return clean, pretty-printed JSON (2 spaces indentation)
+  // Agar debug=1 ho to raw responses bhi dikhaye taake masla foran pakra jaye
+  if (req.query.debug === '1') {
+    outputData._debug = { api1: data1, api2: data2, api3: data3 };
+  }
+
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
   return res.status(200).send(JSON.stringify(outputData, null, 2));
 }
